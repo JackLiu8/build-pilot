@@ -35,6 +35,20 @@ async def webhook(request: Request) -> dict[str, bool]:
         payload = None
         payload_repr = body_bytes.decode("utf-8", errors="replace")
 
+    if isinstance(payload, dict):
+        workflow_run = payload.get("workflow_run", {}) or {}
+        repository = payload.get("repository", {}) or {}
+
+        repo_name = repository.get("name")
+        repo_url = repository.get("html_url")
+        logs_url = workflow_run.get("logs_url")
+        commit_hash = workflow_run.get("head_sha")
+
+        logger.info(
+            "Parsed fields -> repo_name=%s repo_url=%s logs_url=%s commit_hash=%s",
+            repo_name, repo_url, logs_url, commit_hash,
+        )
+
     logger.info(
         "Webhook received: %s %s\nQuery params: %s\nHeaders: %s\nBody:\n%s",
         request.method,
