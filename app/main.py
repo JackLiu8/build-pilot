@@ -30,11 +30,10 @@ async def webhook(request: Request) -> dict[str, bool]:
 
     try:
         payload: Any = json.loads(body_bytes) if body_bytes else None
-        payload_repr = json.dumps(payload, indent=2)
     except ValueError:
         payload = None
-        payload_repr = body_bytes.decode("utf-8", errors="replace")
 
+    repo_name = repo_url = logs_url = commit_hash = None
     if isinstance(payload, dict):
         workflow_run = payload.get("workflow_run", {}) or {}
         repository = payload.get("repository", {}) or {}
@@ -44,18 +43,20 @@ async def webhook(request: Request) -> dict[str, bool]:
         logs_url = workflow_run.get("logs_url")
         commit_hash = workflow_run.get("head_sha")
 
-        logger.info(
-            "Parsed fields -> repo_name=%s repo_url=%s logs_url=%s commit_hash=%s",
-            repo_name, repo_url, logs_url, commit_hash,
-        )
-
+    # One compact line per request. We deliberately stopped dumping the full
+    # JSON body here -- GitHub's workflow_run payloads are large enough that
+    # printing them line-by-line hit Railway's 500 logs/sec rate limit and
+    # silently dropped the middle of the payload (including this exact data)
+    # before it ever reached the console.
     logger.info(
-        "Webhook received: %s %s\nQuery params: %s\nHeaders: %s\nBody:\n%s",
+        "Webhook received: %s %s | repo_name=%s repo_url=%s logs_url=%s commit_hash=%s | body_bytes=%d",
         request.method,
         request.url.path,
-        dict(request.query_params),
-        dict(request.headers),
-        payload_repr,
+        repo_name,
+        repo_url,
+        logs_url,
+        commit_hash,
+        len(body_bytes),
     )
 
     return {"ok": True}
