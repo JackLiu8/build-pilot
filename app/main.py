@@ -1,10 +1,11 @@
-import json
+ import json
 import logging
 import os
 import sys
 from typing import Any
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, Request
 
 app = FastAPI(title="build-pilot")
@@ -40,7 +41,16 @@ def enqueue_failed_build(job: dict) -> str | None:
         logger.warning("SQS not configured (missing AWS_REGION/SQS_QUEUE_URL); skipping enqueue")
         return None
 
-    resp = _sqs.send_message(QueueUrl=SQS_QUEUE_URL, MessageBody=json.dumps(job))
+    # A bad queue URL, wrong region, or missing/invalid credentials should
+    # show up clearly in the logs -- but it should never 500 the webhook.
+    # GitHub retries failed deliveries, and we'd rather log the run once and
+    # miss the enqueue than have GitHub hammer /webhook with retries.
+    try:
+        resp = _sqs.send_message(QueueUrl=SQS_QUEUE_URL, MessageBody=json.dumps(job))
+    except (ClientError, BotoCoreError):
+        logger.exception("Failed to enqueue job to SQS (run_id=%s); continuing without it", job.get("run_id"))
+        return None
+
     return resp["MessageId"]
 
 
