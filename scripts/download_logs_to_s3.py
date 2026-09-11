@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import sys
+from typing import Optional
 
 import boto3
 import requests
@@ -41,7 +42,7 @@ sqs = boto3.client("sqs", region_name=AWS_REGION)
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
 
-def fetch_one_job() -> dict | None:
+def fetch_one_job() -> Optional[dict]:
     """Peek one failed-build job off the queue without deleting it, so this
     script can be re-run without stealing messages the real worker (from
     last session) would otherwise still need to process.
