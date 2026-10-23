@@ -1,0 +1,24 @@
+# Dockerfile.worker -- the worker image, separate from the API's Dockerfile.
+# Only this image needs Claude Code: diagnose/patch (collapsed into
+# remediate()) is the one place a model touches the sandbox.
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Native install. WORKDIR /tmp so the installer does not scan / as root.
+WORKDIR /tmp
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/root/.local/bin:${PATH}"
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# ANTHROPIC_API_KEY (and AWS/DB/GitHub creds) are injected at runtime via
+# the platform's env vars / secrets. Never COPY a .env file into the image.
+CMD ["python", "-m", "worker.sqs_worker"]
